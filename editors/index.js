@@ -1,0 +1,48 @@
+const cursor = require('./cursor');
+const windsurf = require('./windsurf');
+
+const editors = [cursor, windsurf];
+
+/**
+ * Get all chats from all editor adapters, sorted by most recent first.
+ */
+function getAllChats() {
+  const chats = [];
+  for (const editor of editors) {
+    try {
+      const editorChats = editor.getChats();
+      chats.push(...editorChats);
+    } catch { /* skip broken adapters */ }
+  }
+
+  chats.sort((a, b) => {
+    const ta = a.lastUpdatedAt || a.createdAt || 0;
+    const tb = b.lastUpdatedAt || b.createdAt || 0;
+    return tb - ta;
+  });
+
+  return chats;
+}
+
+/**
+ * Get messages for a chat object, dispatching to the right editor adapter.
+ */
+function getMessages(chat) {
+  const editor = editors.find((e) => e.name === chat.source);
+  // windsurf/windsurf-next source names need to match the windsurf adapter
+  const resolvedEditor = editor || editors.find((e) =>
+    chat.source && chat.source.startsWith(e.name)
+  );
+  if (!resolvedEditor) return [];
+  return resolvedEditor.getMessages(chat);
+}
+
+/**
+ * Find a chat by ID prefix across all editors.
+ */
+function findChat(idPrefix) {
+  const chats = getAllChats();
+  return chats.find((c) => c.composerId.startsWith(idPrefix));
+}
+
+module.exports = { getAllChats, getMessages, findChat, editors };

@@ -1,15 +1,21 @@
 {
-  "name": "cursor-chat-cli",
+  "name": "ai-chat-cli",
   "version": "1.0.0",
-  "description": "CLI tool to browse and export Cursor IDE chat history",
+  "description": "CLI tool to browse and export AI IDE chat history (Cursor, Windsurf)",
   "main": "index.js",
   "bin": {
-    "cursor-chat": "./index.js"
+    "ai-chat": "./index.js"
   },
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": ["cursor", "chat", "cli"],
+  "keywords": [
+    "cursor",
+    "windsurf",
+    "chat",
+    "cli",
+    "ai"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
