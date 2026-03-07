@@ -151,8 +151,14 @@ function getMessages(chat) {
       const content = extractContent(obj.message.content);
       if (content) messages.push({ role: 'user', content });
     } else if (obj.type === 'assistant' && obj.message) {
-      const content = extractAssistantContent(obj.message.content);
-      if (content) messages.push({ role: 'assistant', content, _model: obj.message.model });
+      const { text, toolCalls } = extractAssistantContent(obj.message.content);
+      const usage = obj.message.usage;
+      if (text) messages.push({
+        role: 'assistant', content: text, _model: obj.message.model,
+        _inputTokens: usage?.input_tokens, _outputTokens: usage?.output_tokens,
+        _cacheRead: usage?.cache_read_input_tokens, _cacheWrite: usage?.cache_creation_input_tokens,
+        _toolCalls: toolCalls,
+      });
     } else if (obj.type === 'system') {
       const text = typeof obj.message?.content === 'string' ? obj.message.content : '';
       if (text) messages.push({ role: 'system', content: text });
@@ -172,23 +178,26 @@ function extractContent(content) {
 }
 
 function extractAssistantContent(content) {
-  if (typeof content === 'string') return content;
-  if (!Array.isArray(content)) return '';
+  if (typeof content === 'string') return { text: content, toolCalls: [] };
+  if (!Array.isArray(content)) return { text: '', toolCalls: [] };
   const parts = [];
+  const toolCalls = [];
   for (const block of content) {
     if (block.type === 'thinking' && block.thinking) {
       parts.push(`[thinking] ${block.thinking}`);
     } else if (block.type === 'text' && block.text) {
       parts.push(block.text);
     } else if (block.type === 'tool_use') {
-      const argKeys = block.input ? Object.keys(block.input).join(', ') : '';
+      const args = block.input || {};
+      const argKeys = Object.keys(args).join(', ');
       parts.push(`[tool-call: ${block.name || 'unknown'}(${argKeys})]`);
+      toolCalls.push({ name: block.name || 'unknown', args });
     } else if (block.type === 'tool_result') {
       const text = typeof block.content === 'string' ? block.content : '';
       parts.push(`[tool-result: ${block.name || 'tool'}] ${text.substring(0, 500)}`);
     }
   }
-  return parts.join('\n') || '';
+  return { text: parts.join('\n') || '', toolCalls };
 }
 
 module.exports = { name, getChats, getMessages };

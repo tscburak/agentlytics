@@ -86,16 +86,19 @@ function reconstructResponse(metadata) {
   const rounds = metadata.toolCallRounds || [];
   if (rounds.length > 0) {
     const parts = [];
+    const _toolCalls = [];
     for (const round of rounds) {
       const text = (round.response || '').trim();
       if (text) parts.push(text);
       for (const tc of round.toolCalls || []) {
-        let argKeys = '';
-        try { argKeys = Object.keys(JSON.parse(tc.arguments || '{}')).join(', '); } catch {}
+        let args = {};
+        try { args = JSON.parse(tc.arguments || '{}'); } catch {}
+        const argKeys = typeof args === 'object' ? Object.keys(args).join(', ') : '';
         parts.push(`[tool-call: ${tc.name || 'tool'}(${argKeys})]`);
+        _toolCalls.push({ name: tc.name || 'tool', args });
       }
     }
-    if (parts.length > 0) return parts.join('\n');
+    if (parts.length > 0) return { text: parts.join('\n'), toolCalls: _toolCalls };
   }
 
   return '';
@@ -277,6 +280,7 @@ function getMessages(chat) {
 
     // Assistant response
     let responseText = '';
+    let _toolCalls = [];
     if (parsed.format === 'json') {
       // Older format: response is array-like object
       const resp = req.response;
@@ -286,10 +290,21 @@ function getMessages(chat) {
       }
     } else {
       // JSONL: response from codeBlocks or toolCallRounds
-      responseText = reconstructResponse(req.result?.metadata);
+      const result = reconstructResponse(req.result?.metadata);
+      if (typeof result === 'object' && result.text) {
+        responseText = result.text;
+        _toolCalls = result.toolCalls || [];
+      } else {
+        responseText = result || '';
+      }
     }
     if (responseText) {
-      messages.push({ role: 'assistant', content: responseText });
+      const meta = req.result?.metadata;
+      messages.push({
+        role: 'assistant', content: responseText,
+        _inputTokens: meta?.promptTokens, _outputTokens: meta?.outputTokens,
+        _toolCalls,
+      });
     }
   }
   return messages;

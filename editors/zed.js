@@ -93,33 +93,36 @@ function getMessages(chat) {
   let data;
   try { data = JSON.parse(json); } catch { return []; }
 
+  const model = data.model?.model || null;
   const messages = [];
   for (const msg of data.messages || []) {
     if (msg.User) {
-      const text = extractContent(msg.User.content);
+      const { text } = extractContent(msg.User.content);
       if (text) messages.push({ role: 'user', content: text });
     } else if (msg.Agent) {
-      const text = extractContent(msg.Agent.content);
-      if (text) messages.push({ role: 'assistant', content: text });
+      const { text, toolCalls } = extractContent(msg.Agent.content);
+      if (text) messages.push({ role: 'assistant', content: text, _model: model, _toolCalls: toolCalls });
     }
   }
   return messages;
 }
 
 function extractContent(content) {
-  if (!Array.isArray(content)) return '';
+  if (!Array.isArray(content)) return { text: '', toolCalls: [] };
   const parts = [];
+  const toolCalls = [];
   for (const block of content) {
     if (block.Text) {
       parts.push(block.Text);
     } else if (block.ToolUse) {
       const tu = block.ToolUse;
-      let argKeys = '';
+      let args = {};
       try {
-        const input = typeof tu.input === 'string' ? JSON.parse(tu.input) : (tu.input || {});
-        argKeys = Object.keys(input).join(', ');
+        args = typeof tu.input === 'string' ? JSON.parse(tu.input) : (tu.input || {});
       } catch {}
+      const argKeys = typeof args === 'object' ? Object.keys(args).join(', ') : '';
       parts.push(`[tool-call: ${tu.name || 'tool'}(${argKeys})]`);
+      toolCalls.push({ name: tu.name || 'tool', args });
     } else if (block.ToolResult) {
       const tr = block.ToolResult;
       const preview = (tr.content || tr.output || '').substring(0, 500);
@@ -129,7 +132,7 @@ function extractContent(content) {
       if (text) parts.push(`[thinking] ${text}`);
     }
   }
-  return parts.join('\n') || '';
+  return { text: parts.join('\n') || '', toolCalls };
 }
 
 module.exports = { name, getChats, getMessages };

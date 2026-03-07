@@ -1,26 +1,36 @@
 {
-  "name": "ai-chat-cli",
+  "name": "agentlytics",
   "version": "1.0.0",
-  "description": "CLI tool to browse and export AI IDE chat history (Cursor, Windsurf)",
+  "description": "Comprehensive analytics dashboard for AI coding agents — Cursor, Windsurf, Claude Code, VS Code Copilot, Zed, Antigravity, OpenCode",
   "main": "index.js",
   "bin": {
-    "ai-chat": "./index.js"
+    "agentlytics": "./index.js"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "build": "cd ui && npm run build",
+    "dev": "cd ui && npm run dev"
   },
   "keywords": [
     "cursor",
     "windsurf",
-    "chat",
-    "cli",
-    "ai"
+    "claude",
+    "vscode",
+    "copilot",
+    "zed",
+    "antigravity",
+    "opencode",
+    "analytics",
+    "ai",
+    "agent"
   ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "better-sqlite3": "^12.6.2",
     "chalk": "^4.1.2",
-    "commander": "^14.0.3"
+    "commander": "^14.0.3",
+    "express": "^4.22.1",
+    "open": "^8.4.2"
   }
 }

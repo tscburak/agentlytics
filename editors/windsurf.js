@@ -152,12 +152,14 @@ function getMessages(chat) {
       const text = pr.modifiedResponse || pr.response || pr.textContent || '';
       if (text.trim()) parts.push(text.trim());
       // Tool calls
+      const _toolCalls = [];
       if (pr.toolCalls && pr.toolCalls.length > 0) {
         for (const tc of pr.toolCalls) {
-          let args = '';
-          try { args = tc.argumentsJson ? JSON.parse(tc.argumentsJson) : {}; } catch { args = tc.argumentsJson; }
+          let args = {};
+          try { args = tc.argumentsJson ? JSON.parse(tc.argumentsJson) : {}; } catch { args = {}; }
           const argKeys = typeof args === 'object' ? Object.keys(args).join(', ') : '';
           parts.push(`[tool-call: ${tc.name}(${argKeys})]`);
+          _toolCalls.push({ name: tc.name, args });
         }
       }
       if (parts.length > 0) {
@@ -165,6 +167,7 @@ function getMessages(chat) {
           role: 'assistant',
           content: parts.join('\n'),
           _model: meta.generatorModelUid,
+          _toolCalls,
         });
       }
     } else if (type === 'CORTEX_STEP_TYPE_TOOL_EXECUTION' && step.toolExecution) {

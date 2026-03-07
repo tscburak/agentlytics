@@ -67,6 +67,36 @@ function parseTreeBlob(data) {
   return { messageRefs, childRefs };
 }
 
+function normalizeStoreMessage(json) {
+  const msg = { role: json.role, content: '', _toolCalls: [] };
+  // Content may be string or array of parts
+  if (typeof json.content === 'string') {
+    msg.content = json.content;
+  } else if (Array.isArray(json.content)) {
+    msg.content = json.content.map(p => typeof p === 'string' ? p : (p.text || '')).join('\n');
+  }
+  // Tool calls (OpenAI format)
+  if (json.tool_calls && Array.isArray(json.tool_calls)) {
+    for (const tc of json.tool_calls) {
+      const name = tc.function?.name || tc.name || 'unknown';
+      let args = {};
+      try {
+        args = typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : (tc.function?.arguments || {});
+      } catch {}
+      const argKeys = typeof args === 'object' ? Object.keys(args).join(', ') : '';
+      msg.content += `\n[tool-call: ${name}(${argKeys})]`;
+      msg._toolCalls.push({ name, args });
+    }
+  }
+  if (json.model) msg._model = json.model;
+  // Extract provider as model hint if no explicit model
+  if (!msg._model && json.providerOptions && typeof json.providerOptions === 'object') {
+    const providers = Object.keys(json.providerOptions).filter(k => k !== 'type');
+    if (providers.length > 0) msg._model = providers[0];
+  }
+  return msg;
+}
+
 function collectStoreMessages(db, rootBlobId) {
   const allMessages = [];
   const visited = new Set();
@@ -78,7 +108,7 @@ function collectStoreMessages(db, rootBlobId) {
     const data = row.data;
     try {
       const json = typeof data === 'string' ? JSON.parse(data) : JSON.parse(data.toString('utf-8'));
-      if (json && json.role) { allMessages.push(json); return; }
+      if (json && json.role) { allMessages.push(normalizeStoreMessage(json)); return; }
     } catch { /* tree blob */ }
     const { messageRefs, childRefs } = parseTreeBlob(data);
     for (const ref of messageRefs) walk(ref);
@@ -153,49 +183,54 @@ function bubblesToMessages(bubbles) {
         messages.push({ role: 'user', content: text });
       }
     } else if (type === 2) {
-      const parts = [];
+      const textParts = [];
       // Thinking block
-      const thinking = b.thinking;
-      if (thinking && thinking.text) {
-        parts.push({ type: 'reasoning', text: thinking.text });
+      if (b.thinking && b.thinking.text) {
+        textParts.push(`[thinking] ${b.thinking.text}`);
       }
-      // Tool calls
+      // Main text
+      if (b.text) {
+        textParts.push(b.text);
+      }
+      // Tool calls — format as [tool-call: name(argKeys)] for analytics
+      const _toolCalls = [];
       const tfd = b.toolFormerData;
       if (tfd && tfd.name) {
         let args = {};
-        try { args = typeof tfd.rawArgs === 'string' ? JSON.parse(tfd.rawArgs) : (tfd.rawArgs || {}); } catch { args = {}; }
-        parts.push({
-          type: 'tool-call',
-          toolName: tfd.name,
-          toolCallId: tfd.toolCallId || '',
-          args,
-          status: tfd.status || '',
-          userDecision: tfd.userDecision || '',
-        });
+        try {
+          args = typeof tfd.rawArgs === 'string' && tfd.rawArgs !== '' ? JSON.parse(tfd.rawArgs) : (tfd.rawArgs || {});
+        } catch {}
+        // Fallback: use params field when rawArgs is empty
+        if (!args || (typeof args === 'object' && Object.keys(args).length === 0)) {
+          try {
+            const p = typeof tfd.params === 'string' ? JSON.parse(tfd.params) : tfd.params;
+            if (p && typeof p === 'object' && Object.keys(p).length > 0) args = p;
+          } catch {}
+        }
+        const argKeys = typeof args === 'object' ? Object.keys(args).join(', ') : '';
+        textParts.push(`[tool-call: ${tfd.name}(${argKeys})]`);
+        _toolCalls.push({ name: tfd.name, args });
         if (tfd.result) {
-          const resultText = typeof tfd.result === 'string' ? tfd.result
-            : (tfd.result.diff ? JSON.stringify(tfd.result.diff).substring(0, 500) : JSON.stringify(tfd.result).substring(0, 500));
-          parts.push({
-            type: 'tool-result',
-            toolName: tfd.name,
-            result: resultText,
-            userDecision: tfd.userDecision || '',
-          });
+          const preview = typeof tfd.result === 'string' ? tfd.result.substring(0, 300) : JSON.stringify(tfd.result).substring(0, 300);
+          textParts.push(`[tool-result: ${tfd.name}] ${preview}`);
         }
       }
-      if (b.text) {
-        parts.unshift({ type: 'text', text: b.text });
-      }
+      // Code blocks
       if (b.codeBlocks && b.codeBlocks.length > 0) {
         for (const cb of b.codeBlocks) {
           const filePath = cb.uri ? cb.uri.path : '';
-          if (filePath) {
-            parts.push({ type: 'text', text: `[file: ${filePath}]` });
-          }
+          if (filePath) textParts.push(`[file: ${filePath}]`);
         }
       }
-      if (parts.length > 0) {
-        messages.push({ role: 'assistant', content: parts });
+      if (textParts.length > 0) {
+        messages.push({
+          role: 'assistant',
+          content: textParts.join('\n'),
+          _model: b.modelId || b.model || null,
+          _inputTokens: b.tokenCount?.inputTokens,
+          _outputTokens: b.tokenCount?.outputTokens,
+          _toolCalls,
+        });
       }
     }
   }
