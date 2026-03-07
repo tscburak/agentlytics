@@ -6,6 +6,8 @@ Agentlytics reads local chat history from every major AI coding assistant — Cu
 
 No data ever leaves your machine. Everything runs locally against SQLite databases and local files.
 
+<video src="misc/agentlytics.mp4" autoplay loop muted playsinline width="100%"></video>
+
 ---
 
 ## Features
