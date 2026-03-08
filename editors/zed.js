@@ -2,9 +2,26 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { execSync } = require('child_process');
-const { getAppDataPath } = require('./base');
 
-const THREADS_DB = path.join(getAppDataPath('Zed'), 'threads', 'threads.db');
+const Database = require('better-sqlite3');
+
+// Zed stores data in different locations depending on the platform
+// - Windows: %LOCALAPPDATA%\Zed (not Roaming)
+// - macOS: ~/Library/Application Support/Zed
+// - Linux: ~/.config/Zed
+function getZedDataPath() {
+  const home = os.homedir();
+  switch (process.platform) {
+    case 'win32':
+      return path.join(home, 'AppData', 'Local', 'Zed');
+    case 'darwin':
+      return path.join(home, 'Library', 'Application Support', 'Zed');
+    default: // linux, etc.
+      return path.join(home, '.config', 'Zed');
+  }
+}
+
+const THREADS_DB = path.join(getZedDataPath(), 'threads', 'threads.db');
 
 // ============================================================
 // Decompress zstd blob via CLI
@@ -15,7 +32,7 @@ function decompressZstd(buf) {
   const tmpOut = tmpIn.replace('.zst', '.json');
   try {
     fs.writeFileSync(tmpIn, buf);
-    execSync(`zstd -d -f -q ${JSON.stringify(tmpIn)} -o ${JSON.stringify(tmpOut)}`, { stdio: 'pipe' });
+    execSync(`zstd -d -f -q ${JSON.stringify(tmpIn)} -o ${JSON.stringify(tmpOut)}`, { stdio: ['pipe', 'pipe', 'pipe'] });
     const data = fs.readFileSync(tmpOut, 'utf-8');
     return data;
   } finally {
@@ -25,30 +42,32 @@ function decompressZstd(buf) {
 }
 
 // ============================================================
-// Query SQLite via CLI (avoids native module dependency)
+// Query SQLite using better-sqlite3 (cross-platform)
 // ============================================================
 
 function queryDb(sql) {
   if (!fs.existsSync(THREADS_DB)) return [];
   try {
-    const raw = execSync(
-      `sqlite3 -json ${JSON.stringify(THREADS_DB)} ${JSON.stringify(sql)}`,
-      { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }
-    );
-    return JSON.parse(raw);
-  } catch { return []; }
+    const db = new Database(THREADS_DB, { readonly: true });
+    const rows = db.prepare(sql).all();
+    db.close();
+    return rows;
+  } catch (e) {
+    // Silently fail if database is locked or inaccessible
+    return [];
+  }
 }
 
-function queryBlobHex(id) {
+function queryBlob(id) {
   if (!fs.existsSync(THREADS_DB)) return null;
   try {
-    const hex = execSync(
-      `sqlite3 ${JSON.stringify(THREADS_DB)} "SELECT hex(data) FROM threads WHERE id = '${id}'"`,
-      { encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 }
-    ).trim();
-    if (!hex) return null;
-    return Buffer.from(hex, 'hex');
-  } catch { return null; }
+    const db = new Database(THREADS_DB, { readonly: true });
+    const row = db.prepare('SELECT data FROM threads WHERE id = ?').get(id);
+    db.close();
+    return row ? row.data : null;
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================
@@ -71,13 +90,14 @@ function getChats() {
     mode: 'thread',
     folder: null,
     encrypted: false,
+    bubbleCount: 0,
     _dataType: row.data_type,
     _gitBranch: row.worktree_branch,
   }));
 }
 
 function getMessages(chat) {
-  const blob = queryBlobHex(chat.composerId);
+  const blob = queryBlob(chat.composerId);
   if (!blob) return [];
 
   let json;
@@ -88,7 +108,10 @@ function getMessages(chat) {
     } else {
       json = blob.toString('utf-8');
     }
-  } catch { return []; }
+  } catch (e) {
+    // Decompression failed - zstd CLI not available
+    return [];
+  }
 
   let data;
   try { data = JSON.parse(json); } catch { return []; }
