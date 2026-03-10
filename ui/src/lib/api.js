@@ -203,6 +203,15 @@ export async function fetchToolCalls(name, opts = {}) {
   return res.json();
 }
 
+export async function fetchFileInteractions(params = {}) {
+  const q = new URLSearchParams();
+  if (params.folder) q.set('folder', params.folder);
+  appendDateParams(q, params);
+  const qs = q.toString();
+  const res = await fetch(`${BASE}/api/file-interactions${qs ? '?' + qs : ''}`);
+  return res.json();
+}
+
 export async function fetchCheckAi(folder) {
   const q = new URLSearchParams({ folder });
   const res = await fetch(`${BASE}/api/check-ai?${q}`);

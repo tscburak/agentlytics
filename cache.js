@@ -768,6 +768,139 @@ function safeParseJson(s) {
 }
 
 /**
+ * Get file interactions from tool_calls.
+ * Extracts file paths from file-related tool arguments and aggregates metrics by file.
+ */
+function getFileInteractions(opts = {}) {
+  const conditions = [];
+  const params = [];
+
+  // Apply filters
+  const hf = hiddenFolderFilter(opts, 'tc.folder');
+  if (hf.sql) { conditions.push(hf.sql.replace(' AND ', '')); params.push(...hf.params); }
+  if (opts.folder) { conditions.push('tc.folder = ?'); params.push(opts.folder); }
+  if (opts.dateFrom) { conditions.push('tc.timestamp >= ?'); params.push(opts.dateFrom); }
+  if (opts.dateTo) { conditions.push('tc.timestamp <= ?'); params.push(opts.dateTo); }
+
+  // File-related tool names to filter
+  const fileTools = [
+    'read_file', 'read_file_v2', 'write_to_file', 'edit_file', 'edit_file_v2',
+    'write', 'write_file', 'delete_file', 'insert_edit_into_file', 'create_new_file',
+    'file_search', 'directory_tree', 'list_files', 'list_directory'
+  ];
+
+  const toolPlaceholders = fileTools.map(() => '?').join(',');
+  params.unshift(...fileTools);
+
+  const whereClause = conditions.length > 0 ? ' AND ' + conditions.join(' AND ') : '';
+
+  // Query tool_calls with chat stats for token aggregation
+  const sql = `
+    SELECT
+      tc.id,
+      tc.tool_name,
+      tc.args_json,
+      tc.source,
+      tc.folder,
+      tc.timestamp,
+      tc.chat_id,
+      cs.total_input_tokens,
+      cs.total_output_tokens,
+      cs.total_cache_read,
+      cs.total_cache_write,
+      cs.models,
+      c.name as chat_name,
+      c.created_at,
+      c.last_updated_at
+    FROM tool_calls tc
+    LEFT JOIN chat_stats cs ON cs.chat_id = tc.chat_id
+    LEFT JOIN chats c ON c.id = tc.chat_id
+    WHERE tc.tool_name IN (${toolPlaceholders})${whereClause}
+    ORDER BY tc.timestamp DESC
+  `;
+
+  const rows = db.prepare(sql).all(...params);
+
+  // Process and aggregate by file path
+  const fileMap = new Map();
+
+  for (const row of rows) {
+    let filePath = null;
+    try {
+      const args = JSON.parse(row.args_json);
+      // Handle different argument structures for file paths
+      filePath = args.path || args.file_path || args.filePath || args.filename ||
+                 args.file_pathname || args.filepath ||
+                 (args.relativeWorkspacePath && row.folder ?
+                  path.join(row.folder, args.relativeWorkspacePath) : null) ||
+                 (args.workspacePath && row.folder ?
+                  path.join(row.folder, args.workspacePath) : null);
+    } catch { continue; }
+
+    if (!filePath) continue;
+
+    // Normalize file path
+    filePath = filePath.replace(/\\/g, '/');
+
+    if (!fileMap.has(filePath)) {
+      fileMap.set(filePath, {
+        path: filePath,
+        name: filePath.split('/').pop(),
+        dir: filePath.substring(0, filePath.lastIndexOf('/')) || '/',
+        sessions: new Set(),
+        models: new Set(),
+        editors: new Set(),
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        toolCalls: [],
+        firstSeen: row.timestamp,
+        lastSeen: row.timestamp
+      });
+    }
+
+    const file = fileMap.get(filePath);
+    file.sessions.add(row.chat_id);
+    file.editors.add(row.source);
+
+    // Aggregate tokens from chat_stats
+    if (row.total_input_tokens) file.inputTokens += row.total_input_tokens;
+    if (row.total_output_tokens) file.outputTokens += row.total_output_tokens;
+    if (row.total_cache_read) file.cacheRead += row.total_cache_read;
+    if (row.total_cache_write) file.cacheWrite += row.total_cache_write;
+
+    // Parse models array
+    try {
+      const models = JSON.parse(row.models || '[]');
+      models.forEach(m => file.models.add(m));
+    } catch { }
+
+    // Update timestamps
+    if (row.timestamp < file.firstSeen) file.firstSeen = row.timestamp;
+    if (row.timestamp > file.lastSeen) file.lastSeen = row.timestamp;
+
+    file.toolCalls.push({
+      id: row.id,
+      toolName: row.tool_name,
+      timestamp: row.timestamp,
+      chatId: row.chat_id,
+      chatName: row.chat_name,
+      source: row.source
+    });
+  }
+
+  // Convert Sets to Arrays for JSON serialization
+  return Array.from(fileMap.values()).map(f => ({
+    ...f,
+    sessions: Array.from(f.sessions),
+    models: Array.from(f.models),
+    editors: Array.from(f.editors),
+    sessionCount: f.sessions.size
+  }));
+}
+
+/**
  * Async version of scanAll that yields the event loop between iterations.
  * Required for SSE streaming so progress events actually flush to the client.
  */
@@ -1384,6 +1517,7 @@ module.exports = {
   getCachedChat,
   getCachedProjects,
   getCachedToolCalls,
+  getFileInteractions,
   resetAndRescanAsync,
   getCachedDashboardStats,
   getCostBreakdown,

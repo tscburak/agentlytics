@@ -226,6 +226,19 @@ app.get('/api/tool-calls', (req, res) => {
   }
 });
 
+app.get('/api/file-interactions', (req, res) => {
+  try {
+    const opts = {
+      folder: req.query.folder || null,
+      ...parseDateOpts(req.query),
+      hiddenFolders: getHiddenFolders(),
+    };
+    res.json(cache.getFileInteractions(opts));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/query', (req, res) => {
   try {
     const { sql } = req.body;

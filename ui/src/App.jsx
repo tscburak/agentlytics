@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { Activity, BarChart3, GitCompare, MessageSquare, FolderOpen, DollarSign, CreditCard, Sun, Moon, RefreshCw, AlertTriangle, Github, Terminal, Database, Users, Plug, Copy, Check, Settings as SettingsIcon, Package, ChevronDown } from 'lucide-react'
+import { Activity, BarChart3, GitCompare, MessageSquare, FolderOpen, DollarSign, CreditCard, Sun, Moon, RefreshCw, AlertTriangle, Github, Terminal, Database, Users, Plug, Copy, Check, Settings as SettingsIcon, Package, ChevronDown, GitBranch } from 'lucide-react'
 import { fetchOverview, refetchAgents, fetchMode, fetchRelayConfig, getAuthToken, setOnAuthFailure } from './lib/api'
 import { useTheme } from './lib/theme'
 import AnimatedLogo from './components/AnimatedLogo'
@@ -17,6 +17,7 @@ import SqlViewer from './pages/SqlViewer'
 import Artifacts from './pages/Artifacts'
 import Settings from './pages/Settings'
 import Subscriptions from './pages/Subscriptions'
+import Interactions from './pages/Interactions'
 import RelayDashboard from './pages/RelayDashboard'
 import RelayUserDetail from './pages/RelayUserDetail'
 
@@ -146,6 +147,7 @@ export default function App() {
     { icon: BarChart3, label: 'Insights', children: [
       { to: '/analysis', icon: BarChart3, label: 'Deep Analysis' },
       { to: '/compare', icon: GitCompare, label: 'Compare' },
+      { to: '/interactions', icon: GitBranch, label: 'Interactions' },
     ]},
     { to: '/artifacts', icon: Package, label: 'Artifacts' },
     { to: '/sql', icon: Database, label: 'SQL' },
@@ -273,6 +275,7 @@ export default function App() {
             <Route path="/costs" element={<CostAnalysis overview={overview} />} />
             <Route path="/analysis" element={<DeepAnalysis overview={overview} />} />
             <Route path="/compare" element={<Compare overview={overview} />} />
+            <Route path="/interactions" element={<Interactions />} />
             <Route path="/subscriptions" element={<Subscriptions />} />
             <Route path="/artifacts" element={<Artifacts />} />
             <Route path="/sql" element={<SqlViewer />} />
