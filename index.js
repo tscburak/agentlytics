@@ -277,20 +277,55 @@ const BOT_STYLES = [
     process.exit(0);
   }
 
-  // Start server
+  // Start server (kill stale agentlytics or find free port)
   const app = require('./server');
-  app.listen(PORT, () => {
-    const url = `http://localhost:${PORT}`;
-    console.log(chalk.green(`  ✓ Dashboard ready at ${chalk.bold.white(url)}`));
-    console.log('');
-    console.log(chalk.dim('  💡 Share sessions with your team:'));
-    console.log(chalk.dim(`     npx agentlytics --relay                        Start a relay server`));
-    console.log(chalk.dim(`     npx agentlytics --join <host:port> --username   Join a relay server`));
-    console.log('');
-    console.log(chalk.dim('  Press Ctrl+C to stop\n'));
+  const http = require('http');
+  const net = require('net');
 
-    // Auto-open browser
-    const open = require('open');
-    open(url).catch(() => {});
-  });
+  function isPortFree(port) {
+    return new Promise((resolve) => {
+      const tester = net.createServer()
+        .once('error', () => resolve(false))
+        .once('listening', () => tester.close(() => resolve(true)))
+        .listen(port, '0.0.0.0');
+    });
+  }
+
+  async function startServer(port) {
+    const free = await isPortFree(port);
+    if (!free) {
+      // Port in use — check if it's a previous agentlytics instance
+      try {
+        const data = await new Promise((resolve, reject) => {
+          const req = http.get(`http://127.0.0.1:${port}/api/ping`, { timeout: 2000 }, (res) => {
+            let body = '';
+            res.on('data', (d) => body += d);
+            res.on('end', () => { try { resolve(JSON.parse(body)); } catch { reject(); } });
+          });
+          req.on('error', reject);
+        });
+        if (data.app === 'agentlytics' && data.pid) {
+          console.log(chalk.yellow(`  ⟳ Killing previous Agentlytics instance (PID ${data.pid})...`));
+          try { process.kill(data.pid, 'SIGTERM'); } catch {}
+          await new Promise(r => setTimeout(r, 1000));
+          return startServer(port);
+        }
+      } catch {}
+      console.log(chalk.yellow(`  ⚠ Port ${port} is in use by another app, trying ${port + 1}...`));
+      return startServer(port + 1);
+    }
+
+    app.listen(port, '0.0.0.0', () => {
+      const url = `http://localhost:${port}`;
+      console.log(chalk.green(`  ✓ Dashboard ready at ${chalk.bold.white(url)}`));
+      console.log('');
+      console.log(chalk.dim('  Press Ctrl+C to stop\n'));
+
+      // Auto-open browser
+      const open = require('open');
+      open(url).catch(() => {});
+    });
+  }
+
+  startServer(parseInt(PORT));
 })();

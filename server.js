@@ -41,6 +41,10 @@ function parseDateOpts(query) {
   return opts;
 }
 
+app.get('/api/ping', (req, res) => {
+  res.json({ app: 'agentlytics', pid: process.pid });
+});
+
 app.get('/api/mode', (req, res) => {
   res.json({ mode: 'local' });
 });
