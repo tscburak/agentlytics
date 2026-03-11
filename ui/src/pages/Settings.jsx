@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Settings as SettingsIcon, EyeOff, Eye, FolderOpen, Search } from 'lucide-react'
+import { Settings as SettingsIcon, EyeOff, Eye, FolderOpen, Search, ShieldCheck, ShieldOff } from 'lucide-react'
 import { fetchConfig, updateConfig, fetchAllProjects } from '../lib/api'
 import { editorLabel, formatNumber, formatDate } from '../lib/constants'
 import EditorIcon from '../components/EditorIcon'
@@ -47,9 +47,43 @@ export default function Settings() {
 
   const sorted = [...filtered].sort((a, b) => a.name.localeCompare(b.name))
 
+  const subscriptionAccess = !!config.allowSubscriptionAccess
+
+  const toggleSubscriptionAccess = async () => {
+    setSaving(true)
+    const newConfig = await updateConfig({ allowSubscriptionAccess: !subscriptionAccess })
+    setConfig(newConfig)
+    setSaving(false)
+  }
+
   return (
     <div className="fade-in space-y-3">
       <PageHeader icon={SettingsIcon} title="Settings" />
+
+      <div className="card overflow-hidden">
+        <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid var(--c-border)' }}>
+          <SectionTitle>
+            {subscriptionAccess ? <ShieldCheck size={11} className="inline mr-1" /> : <ShieldOff size={11} className="inline mr-1" />}
+            subscription access
+          </SectionTitle>
+          <button
+            onClick={toggleSubscriptionAccess}
+            disabled={saving}
+            className="text-[11px] px-2 py-0.5 rounded transition"
+            style={{
+              background: subscriptionAccess ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+              color: subscriptionAccess ? '#22c55e' : '#ef4444',
+              border: `1px solid ${subscriptionAccess ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}`,
+            }}
+          >
+            {subscriptionAccess ? 'Enabled' : 'Disabled'}
+          </button>
+        </div>
+        <div className="text-[11px] px-3 py-2" style={{ color: 'var(--c-text3)' }}>
+          When enabled, Agentlytics reads locally stored auth tokens (Keychain, SQLite, config files) to show your plan and usage info for each editor.
+          Tokens are kept in-memory only and <span style={{ color: 'var(--c-text2)' }}>never sent to any third-party service</span>.
+        </div>
+      </div>
 
       <div className="card overflow-hidden">
         <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid var(--c-border)' }}>
