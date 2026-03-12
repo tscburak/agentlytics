@@ -49,7 +49,7 @@ Opens at **http://localhost:4637**. Requires Node.js ≥ 20.19 or ≥ 22.12, mac
 Run a lightweight, zero-dependency analytics scan with Deno's permission sandbox — directly from a URL, no install needed:
 
 ```bash
-deno run --allow-read --allow-env https://raw.githubusercontent.com/f/agentlytics/main/mod.ts
+deno run --allow-read --allow-env https://raw.githubusercontent.com/f/agentlytics/master/mod.ts
 ```
 
 Only `--allow-read` and `--allow-env` are required. No network access, no file writes, no code execution — just reads your local editor data and prints a summary.
