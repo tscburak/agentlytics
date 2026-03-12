@@ -228,7 +228,7 @@ export default function RelayUserDetail() {
       </div>
 
       {/* ── Center: scrollable content ── */}
-      <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-3">
         {/* Header */}
         <div className="flex items-center gap-3">
           <button

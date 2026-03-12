@@ -180,4 +180,34 @@ function extractContent(content) {
 
 const labels = { 'zed': 'Zed' };
 
-module.exports = { name, labels, getChats, getMessages };
+function getMCPServers() {
+  const results = [];
+  // Zed stores MCP servers in ~/.config/zed/settings.json under context_servers key
+  const settingsPath = path.join(getZedDataPath(), 'settings.json');
+  if (!fs.existsSync(settingsPath)) return results;
+  try {
+    const data = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+    const servers = data.context_servers || {};
+    for (const [name, cfg] of Object.entries(servers)) {
+      if (typeof cfg !== 'object') continue;
+      const settings = cfg.settings || {};
+      results.push({
+        name,
+        editor: 'zed',
+        editorLabel: 'Zed',
+        scope: 'global',
+        configPath: settingsPath,
+        command: settings.command || cfg.command || null,
+        args: settings.args || cfg.args || [],
+        env: settings.env ? Object.keys(settings.env) : [],
+        url: settings.url || cfg.url || null,
+        transport: (settings.url || cfg.url) ? 'http' : 'stdio',
+        disabled: false,
+        disabledTools: [],
+      });
+    }
+  } catch {}
+  return results;
+}
+
+module.exports = { name, labels, getChats, getMessages, getMCPServers };

@@ -306,4 +306,53 @@ function getArtifacts(folder) {
   });
 }
 
-module.exports = { name, labels, getChats, getMessages, resetCache, getArtifacts };
+function getMCPServers() {
+  const results = [];
+  // Goose stores MCP config in ~/.config/goose/config.yaml under extensions
+  // Also check profiles.yaml for MCP server entries
+  const configFiles = [CONFIG_PATH, path.join(os.homedir(), '.config', 'goose', 'profiles.yaml')];
+  for (const cfgPath of configFiles) {
+    if (!fs.existsSync(cfgPath)) continue;
+    try {
+      const raw = fs.readFileSync(cfgPath, 'utf-8');
+      // Simple YAML parsing for mcpServers / extensions blocks
+      let currentServer = null;
+      let inMcp = false;
+      for (const line of raw.split('\n')) {
+        if (line.match(/^\s*(mcpServers|extensions):/)) { inMcp = true; continue; }
+        if (inMcp && line.match(/^\s{2}\w/) && !line.match(/^\s{4}/)) {
+          // New top-level key under mcpServers
+          if (currentServer) results.push(currentServer);
+          const nameMatch = line.match(/^\s{2}(\S+):/);
+          if (nameMatch) {
+            currentServer = {
+              name: nameMatch[1],
+              editor: 'goose',
+              editorLabel: 'Goose',
+              scope: 'global',
+              configPath: cfgPath,
+              command: null, args: [], env: [], url: null,
+              transport: 'stdio', disabled: false, disabledTools: [],
+            };
+          }
+          continue;
+        }
+        if (inMcp && currentServer) {
+          const cmdMatch = line.match(/^\s+command:\s*(.+)/);
+          if (cmdMatch) currentServer.command = cmdMatch[1].trim();
+          const urlMatch = line.match(/^\s+url:\s*(.+)/);
+          if (urlMatch) { currentServer.url = urlMatch[1].trim(); currentServer.transport = 'http'; }
+        }
+        if (line.match(/^\S/) && !line.match(/^\s/) && inMcp) {
+          if (currentServer) results.push(currentServer);
+          currentServer = null;
+          inMcp = false;
+        }
+      }
+      if (currentServer) results.push(currentServer);
+    } catch {}
+  }
+  return results;
+}
+
+module.exports = { name, labels, getChats, getMessages, resetCache, getArtifacts, getMCPServers };

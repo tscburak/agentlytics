@@ -303,4 +303,13 @@ function getArtifacts(folder) {
   });
 }
 
-module.exports = { name, labels, getChats, getMessages, getArtifacts };
+function getMCPServers() {
+  const { parseMcpConfigFile } = require('./base');
+  // Global: ~/.kiro/settings/mcp.json
+  const globalConfig = path.join(os.homedir(), '.kiro', 'settings', 'mcp.json');
+  return [
+    ...parseMcpConfigFile(globalConfig, { editor: 'kiro', label: 'Kiro', scope: 'global' }),
+  ];
+}
+
+module.exports = { name, labels, getChats, getMessages, getArtifacts, getMCPServers };

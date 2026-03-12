@@ -11,6 +11,7 @@ import LiveFeed from '../components/LiveFeed'
 import { editorColor, editorLabel, formatNumber, formatDate } from '../lib/constants'
 import { fetchRelayTeamStats, fetchRelaySearch, fetchRelaySession, mergeRelayUsers } from '../lib/api'
 import AnimatedLoader from '../components/AnimatedLoader'
+import PageHeader from '../components/PageHeader'
 import { useTheme } from '../lib/theme'
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
@@ -319,7 +320,9 @@ export default function RelayDashboard() {
       </div>
 
       {/* ── Center: scrollable content ── */}
-      <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-3">
+        <PageHeader icon={Users} title="Team Relay" />
+
         {/* KPIs */}
         <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))' }}>
           <KpiCard label="team members" value={stats.totalUsers} />

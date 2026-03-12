@@ -12,6 +12,7 @@ import AnimatedLoader from '../components/AnimatedLoader'
 import SectionTitle from '../components/SectionTitle'
 import DateRangePicker from '../components/DateRangePicker'
 import ChatSidebar from '../components/ChatSidebar'
+import PageHeader from '../components/PageHeader'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler)
 
@@ -102,17 +103,13 @@ export default function CostAnalysis({ overview }) {
   }
 
   return (
-    <div className="fade-in space-y-4">
+    <div className="fade-in space-y-3">
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 text-[13px] font-bold" style={{ color: 'var(--c-white)' }}>
-          <DollarSign size={14} style={{ color: '#6366f1' }} />
-          Cost Analysis
-        </div>
+      <PageHeader icon={DollarSign} title="Cost Analysis">
         <select
           value={editor}
           onChange={e => setEditor(e.target.value)}
-          className="px-2 py-1 text-[12px] outline-none appearance-none cursor-pointer"
+          className="px-2 py-1 text-[12px] outline-none"
           style={{ background: 'var(--c-bg3)', color: 'var(--c-text)', border: '1px solid var(--c-border)' }}
         >
           <option value="">All Editors</option>
@@ -121,7 +118,7 @@ export default function CostAnalysis({ overview }) {
           ))}
         </select>
         <div className="ml-auto"><DateRangePicker value={apiDateRange} onChange={setApiDateRange} /></div>
-      </div>
+      </PageHeader>
 
       {/* Disclaimer */}
       <div className="flex items-start gap-2 px-3 py-2 text-[11px] rounded" style={{ background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.15)', color: '#ca8a04' }}>
@@ -130,7 +127,7 @@ export default function CostAnalysis({ overview }) {
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))' }}>
+      <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))' }}>
         <KpiCard label="total est. cost" value={formatCost(totalCost)} sub="all models" />
         <KpiCard label="avg / session" value={formatCost(summary.avgPerSession)} sub={`${formatNumber(summary.totalSessions)} sessions`} />
         <KpiCard label="avg / day" value={formatCost(summary.avgPerDay)} sub={`${summary.totalDays} days`} />

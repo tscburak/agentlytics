@@ -6,6 +6,7 @@ import { fetchArtifacts, fetchArtifactContent } from '../lib/api'
 import { editorColor, editorLabel } from '../lib/constants'
 import EditorIcon from '../components/EditorIcon'
 import AnimatedLoader from '../components/AnimatedLoader'
+import PageHeader from '../components/PageHeader'
 
 const MONO = 'JetBrains Mono, monospace'
 
@@ -395,36 +396,22 @@ export default function Artifacts() {
 
   return (
     <div className="h-full">
-      {/* Header stats */}
-      <div className="flex items-center gap-4 mb-0 px-4 py-3" style={{ borderBottom: '1px solid var(--c-border)' }}>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
-            <Package size={13} style={{ color: '#6366f1' }} />
-            <span className="text-[12px] font-medium" style={{ color: 'var(--c-white)' }}>{totalArtifacts}</span>
-            <span className="text-[11px]" style={{ color: 'var(--c-text3)' }}>artifacts</span>
+      {/* Header */}
+      <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--c-border)' }}>
+        <PageHeader icon={Package} title="Artifacts">
+          <span className="text-[11px]" style={{ color: 'var(--c-text3)' }}>{totalArtifacts} artifacts · {totalProjects} projects · {allEditors.size} editors</span>
+          <div className="ml-auto relative">
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text3)' }} />
+            <input
+              type="text"
+              placeholder="Search artifacts..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-7 pr-3 py-1 text-[12px] outline-none w-[200px]"
+              style={{ background: 'var(--c-bg3)', border: '1px solid var(--c-border)', color: 'var(--c-text)' }}
+            />
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
-            <FolderOpen size={13} style={{ color: '#6366f1' }} />
-            <span className="text-[12px] font-medium" style={{ color: 'var(--c-white)' }}>{totalProjects}</span>
-            <span className="text-[11px]" style={{ color: 'var(--c-text3)' }}>projects</span>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
-            <Hash size={13} style={{ color: '#6366f1' }} />
-            <span className="text-[12px] font-medium" style={{ color: 'var(--c-white)' }}>{allEditors.size}</span>
-            <span className="text-[11px]" style={{ color: 'var(--c-text3)' }}>editors</span>
-          </div>
-        </div>
-        <div className="ml-auto relative">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text3)' }} />
-          <input
-            type="text"
-            placeholder="Search artifacts..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-7 pr-3 py-1.5 text-[12px] rounded w-[240px]"
-            style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)', color: 'var(--c-text)', outline: 'none' }}
-          />
-        </div>
+        </PageHeader>
       </div>
 
       {filtered.length === 0 ? (

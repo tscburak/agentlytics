@@ -194,4 +194,9 @@ function getMessages(chat) {
 
 const labels = { 'cursor-agent': 'Cursor Agent' };
 
-module.exports = { name, labels, getChats, getMessages };
+function getMCPServers() {
+  // Cursor Agent shares MCP config with Cursor (handled by cursor.js)
+  return [];
+}
+
+module.exports = { name, labels, getChats, getMessages, getMCPServers };

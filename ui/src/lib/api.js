@@ -236,6 +236,13 @@ export async function fetchArtifactContent(filePath) {
   return res.json();
 }
 
+// ── MCPs API ──
+
+export async function fetchMCPs() {
+  const res = await fetch(`${BASE}/api/mcps`);
+  return res.json();
+}
+
 // ── Relay API ──
 
 export async function fetchMode() {

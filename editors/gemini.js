@@ -183,4 +183,13 @@ function getArtifacts(folder) {
   });
 }
 
-module.exports = { name, labels, getChats, getMessages, getArtifacts };
+function getMCPServers() {
+  const { parseMcpConfigFile } = require('./base');
+  // Global: ~/.gemini/settings.json (mcpServers key)
+  const globalSettings = path.join(os.homedir(), '.gemini', 'settings.json');
+  return [
+    ...parseMcpConfigFile(globalSettings, { editor: 'gemini-cli', label: 'Gemini CLI', scope: 'global' }),
+  ];
+}
+
+module.exports = { name, labels, getChats, getMessages, getArtifacts, getMCPServers };

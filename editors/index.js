@@ -119,4 +119,55 @@ function getAllArtifacts(folder) {
   return Array.from(seen.values());
 }
 
-module.exports = { getAllChats, getMessages, editors, editorLabels, resetCaches, getAllUsage, getAllArtifacts };
+/**
+ * Get all MCP servers from all editors.
+ * Also scans project folders for project-level MCP configs (.mcp.json, .cursor/mcp.json, etc.)
+ */
+function getAllMCPServers(projectFolders = []) {
+  const { parseMcpConfigFile } = require('./base');
+  const path = require('path');
+  const fs = require('fs');
+  const servers = [];
+
+  // 1. Collect global MCP servers from each editor
+  for (const editor of editors) {
+    if (typeof editor.getMCPServers !== 'function') continue;
+    try {
+      servers.push(...editor.getMCPServers());
+    } catch { /* skip broken adapters */ }
+  }
+
+  // 2. Scan project folders for project-level MCP configs
+  const projectConfigs = [
+    { file: '.mcp.json', editor: 'claude-code', label: 'Claude Code' },
+    { file: '.cursor/mcp.json', editor: 'cursor', label: 'Cursor' },
+    { file: '.vscode/mcp.json', editor: 'vscode', label: 'VS Code' },
+    { file: '.gemini/settings.json', editor: 'gemini-cli', label: 'Gemini CLI' },
+    { file: '.kiro/settings/mcp.json', editor: 'kiro', label: 'Kiro' },
+  ];
+
+  const seenProjects = new Set();
+  for (const folder of projectFolders) {
+    if (!folder || seenProjects.has(folder)) continue;
+    seenProjects.add(folder);
+    for (const pc of projectConfigs) {
+      const configPath = path.join(folder, pc.file);
+      if (!fs.existsSync(configPath)) continue;
+      const found = parseMcpConfigFile(configPath, { editor: pc.editor, label: pc.label, scope: 'project' });
+      for (const s of found) {
+        s.projectFolder = folder;
+      }
+      servers.push(...found);
+    }
+  }
+
+  // 3. Deduplicate by name+editor (keep first occurrence, prefer global over project)
+  const seen = new Map();
+  for (const s of servers) {
+    const key = `${s.name}::${s.editor}::${s.scope}`;
+    if (!seen.has(key)) seen.set(key, s);
+  }
+  return Array.from(seen.values());
+}
+
+module.exports = { getAllChats, getMessages, editors, editorLabels, resetCaches, getAllUsage, getAllArtifacts, getAllMCPServers };

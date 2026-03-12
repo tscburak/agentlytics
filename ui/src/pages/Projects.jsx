@@ -11,6 +11,7 @@ import EditorIcon from '../components/EditorIcon'
 import DateRangePicker from '../components/DateRangePicker'
 import SectionTitle from '../components/SectionTitle'
 import AnimatedLoader from '../components/AnimatedLoader'
+import PageHeader from '../components/PageHeader'
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
 
@@ -63,7 +64,9 @@ export default function Projects({ overview }) {
   const top10 = projects.slice(0, 10)
 
   return (
-    <div className="fade-in space-y-4">
+    <div className="fade-in space-y-3">
+      <PageHeader icon={FolderOpen} title="Projects" />
+
       {/* KPIs */}
       <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))' }}>
         <KpiCard label="projects" value={projects.length} />
@@ -143,7 +146,7 @@ export default function Projects({ overview }) {
         <select
           value={editorFilter}
           onChange={e => setEditorFilter(e.target.value)}
-          className="px-2 py-1.5 text-[12px] outline-none rounded-sm"
+          className="px-2 py-1 text-[12px] outline-none"
           style={{ background: 'var(--c-bg3)', color: 'var(--c-text)', border: '1px solid var(--c-border)' }}
         >
           <option value="">All Editors</option>
@@ -151,14 +154,14 @@ export default function Projects({ overview }) {
             <option key={e.id} value={e.id}>{editorLabel(e.id)}</option>
           ))}
         </select>
-        <div className="relative max-w-sm flex-1">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text3)' }} />
+        <div className="relative flex-1 max-w-sm">
+          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text3)' }} />
           <input
             type="text"
-            placeholder="search projects..."
+            placeholder="Search projects..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-[12px] outline-none rounded-sm"
+            className="w-full pl-7 pr-3 py-1 text-[12px] outline-none"
             style={{ background: 'var(--c-bg3)', color: 'var(--c-text)', border: '1px solid var(--c-border)' }}
           />
         </div>

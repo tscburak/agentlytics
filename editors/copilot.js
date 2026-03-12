@@ -211,6 +211,8 @@ function fetchCopilotStatus(token) {
 }
 
 async function getUsage() {
+  const { isSubscriptionAccessAllowed } = require('./base');
+  if (!isSubscriptionAccessAllowed()) return null;
   const creds = getCopilotToken();
   if (!creds) return null;
 
@@ -250,4 +252,9 @@ function getArtifacts(folder) {
   });
 }
 
-module.exports = { name, labels, getChats, getMessages, getUsage, getArtifacts };
+function getMCPServers() {
+  // Copilot CLI shares MCP config with VS Code (handled by vscode.js)
+  return [];
+}
+
+module.exports = { name, labels, getChats, getMessages, getUsage, getArtifacts, getMCPServers };

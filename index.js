@@ -253,6 +253,50 @@ const BOT_STYLES = [
 ];
 
 (async () => {
+  // ── Ask for subscription access permission (first run only) ──
+  const CONFIG_DIR = path.join(os.homedir(), '.agentlytics');
+  const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+  let agentConfig = {};
+  try { agentConfig = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8')); } catch {}
+
+  if (agentConfig.allowSubscriptionAccess === undefined) {
+    console.log(chalk.yellow('  ⚠ Subscription & usage details require access to local auth tokens.'));
+    console.log('');
+    console.log(chalk.dim('    To show your plan and usage info, Agentlytics needs to read'));
+    console.log(chalk.dim('    locally stored tokens from the following sources:'));
+    console.log('');
+    console.log(chalk.dim('      • Claude Code  – macOS Keychain / Linux secret-tool'));
+    console.log(chalk.dim('      • Cursor       – local SQLite (state.vscdb)'));
+    console.log(chalk.dim('      • Copilot      – ~/.config/github-copilot/apps.json'));
+    console.log(chalk.dim('      • VS Code      – ~/.config/github-copilot/apps.json'));
+    console.log(chalk.dim('      • Codex        – local auth.json (JWT decode only)'));
+    console.log(chalk.dim('      • Windsurf     – local SQLite (state.vscdb)'));
+    console.log('');
+    console.log(chalk.dim('    These tokens are used to query each editor\'s own API for'));
+    console.log(chalk.dim('    your plan name and usage limits.'));
+    console.log('');
+    console.log(chalk.bold.white('    → Tokens are kept in-memory only and never sent to any'));
+    console.log(chalk.bold.white('      third-party service. They are discarded after the request.'));
+    console.log('');
+    const readline = require('readline');
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await new Promise(r => {
+      rl.question(chalk.bold('  Allow local token inspection for subscription details? (y/N) '), (a) => {
+        rl.close();
+        r(a.trim().toLowerCase());
+      });
+    });
+    agentConfig.allowSubscriptionAccess = answer === 'y' || answer === 'yes';
+    if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(agentConfig, null, 2));
+    if (agentConfig.allowSubscriptionAccess) {
+      console.log(chalk.green('  ✓ Subscription access enabled'));
+    } else {
+      console.log(chalk.dim('  – Subscription access skipped (plan/usage details won\'t be collected)'));
+    }
+    console.log('');
+  }
+
   let tick = 0;
   const startTime = Date.now();
   const result = await cache.scanAllAsync((p) => {
@@ -281,6 +325,11 @@ const BOT_STYLES = [
   const app = require('./server');
   const http = require('http');
   const net = require('net');
+
+  // Pre-cache MCP server tool lists (runs in background, non-blocking)
+  app.initMcpToolsCache().then(() => {
+    console.log(chalk.green('  ✓ MCP tools cached'));
+  }).catch(() => {});
 
   function isPortFree(port) {
     return new Promise((resolve) => {

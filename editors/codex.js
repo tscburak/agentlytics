@@ -477,6 +477,8 @@ function decodeJwtPayload(token) {
 }
 
 async function getUsage() {
+  const { isSubscriptionAccessAllowed } = require('./base');
+  if (!isSubscriptionAccessAllowed()) return null;
   const auth = getCodexAuth();
   if (!auth || !auth.tokens) return null;
 
@@ -519,6 +521,11 @@ function getArtifacts(folder) {
   });
 }
 
+function getMCPServers() {
+  // Codex doesn't have native MCP server configuration
+  return [];
+}
+
 module.exports = {
   name,
   labels,
@@ -526,4 +533,5 @@ module.exports = {
   getChats,
   getMessages,
   getUsage,
+  getMCPServers,
 };

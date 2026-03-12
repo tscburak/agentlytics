@@ -476,6 +476,9 @@ function getWindsurfApiKey(appName) {
 }
 
 function getUsage() {
+  const { isSubscriptionAccessAllowed } = require('./base');
+  if (!isSubscriptionAccessAllowed()) return [];
+
   const results = [];
 
   for (const variant of VARIANTS) {
@@ -588,4 +591,17 @@ function getArtifacts(folder) {
   });
 }
 
-module.exports = { name, sources, labels, getChats, getMessages, resetCache, getUsage, getArtifacts };
+function getMCPServers() {
+  const { parseMcpConfigFile } = require('./base');
+  const results = [];
+  const configs = [
+    { file: path.join(os.homedir(), '.codeium', 'windsurf', 'mcp_config.json'), editor: 'windsurf', label: 'Windsurf' },
+    { file: path.join(os.homedir(), '.codeium', 'windsurf-next', 'mcp_config.json'), editor: 'windsurf-next', label: 'Windsurf Next' },
+  ];
+  for (const c of configs) {
+    results.push(...parseMcpConfigFile(c.file, { editor: c.editor, label: c.label, scope: 'global' }));
+  }
+  return results;
+}
+
+module.exports = { name, sources, labels, getChats, getMessages, resetCache, getUsage, getArtifacts, getMCPServers };

@@ -158,4 +158,9 @@ function extractAssistantContent(content) {
 
 const labels = { 'commandcode': 'Command Code' };
 
-module.exports = { name, labels, getChats, getMessages };
+function getMCPServers() {
+  // CommandCode uses Claude's .mcp.json format (project-level, handled by claude.js)
+  return [];
+}
+
+module.exports = { name, labels, getChats, getMessages, getMCPServers };

@@ -4,6 +4,7 @@ import { fetchUsage } from '../lib/api'
 import { editorLabel, editorColor } from '../lib/constants'
 import EditorIcon from '../components/EditorIcon'
 import AnimatedLoader from '../components/AnimatedLoader'
+import PageHeader from '../components/PageHeader'
 
 function UsageBar({ value, max = 100, color, label }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
@@ -364,12 +365,8 @@ export default function Subscriptions() {
   useEffect(() => { load() }, [])
 
   return (
-    <div className="fade-in space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 text-[13px] font-bold" style={{ color: 'var(--c-white)' }}>
-          <CreditCard size={14} style={{ color: '#6366f1' }} />
-          Subscriptions
-        </div>
+    <div className="fade-in space-y-3">
+      <PageHeader icon={CreditCard} title="Subscriptions">
         <button
           onClick={load}
           disabled={loading}
@@ -384,7 +381,7 @@ export default function Subscriptions() {
             {data.length} subscription{data.length !== 1 ? 's' : ''} detected
           </span>
         )}
-      </div>
+      </PageHeader>
 
       {loading && !data && (
         <AnimatedLoader label="Loading subscriptions..." />

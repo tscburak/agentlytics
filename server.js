@@ -444,6 +444,294 @@ app.get('/api/artifact-content', (req, res) => {
   }
 });
 
+// ============================================================
+// MCPs — collect MCP servers from all editors + match tool calls
+// ============================================================
+
+// Cache: MCP server tool lists are queried once at startup via initMcpToolsCache()
+let _mcpToolsCache = null; // { servers, serverToolResults, toolToServer, serverToolPatterns }
+
+async function initMcpToolsCache() {
+  const { getAllMCPServers } = require('./editors');
+  const { queryMcpServerTools } = require('./editors/base');
+  const projects = cache.getCachedProjects({ hiddenFolders: getHiddenFolders() });
+  const projectFolders = projects.map(p => p.folder).filter(Boolean);
+
+  const servers = getAllMCPServers(projectFolders);
+
+  const queryPromises = servers.map(async (server) => {
+    if (server.disabled) return { server, tools: [] };
+    try {
+      const tools = await queryMcpServerTools(server);
+      return { server, tools };
+    } catch {
+      return { server, tools: [] };
+    }
+  });
+
+  const serverToolResults = await Promise.all(queryPromises);
+
+  const toolToServer = {};
+  for (const { server, tools } of serverToolResults) {
+    server.tools = tools;
+    for (const toolName of tools) {
+      toolToServer[toolName] = server.name;
+    }
+  }
+
+  const serverToolPatterns = {};
+  for (const { server, tools } of serverToolResults) {
+    if (tools.length === 0) continue;
+    serverToolPatterns[server.name] = new Set(tools.map(t => t.toLowerCase()));
+  }
+
+  _mcpToolsCache = { servers, serverToolResults, toolToServer, serverToolPatterns };
+  return _mcpToolsCache;
+}
+
+app.initMcpToolsCache = initMcpToolsCache;
+
+app.get('/api/mcps', async (req, res) => {
+  try {
+    const db = cache.getDb();
+
+    // Use cached MCP tool data (queried once at startup)
+    if (!_mcpToolsCache) await initMcpToolsCache();
+    const { servers, serverToolResults, toolToServer, serverToolPatterns } = _mcpToolsCache;
+
+    // 3. Get tool call stats from the SQLite cache
+    const toolRows = db.prepare(`
+      SELECT tc.tool_name, tc.source, tc.chat_id, tc.folder, tc.timestamp, c.name as chat_name
+      FROM tool_calls tc JOIN chats c ON tc.chat_id = c.id
+      ORDER BY tc.timestamp DESC
+    `).all();
+
+    const toolCallMap = {}; // toolName -> { count, editors: Set, sessions: Set, folders: Set }
+    const sessionMap = {};  // chatId -> { ... }
+
+    for (const row of toolRows) {
+      const name = row.tool_name;
+      if (!toolCallMap[name]) toolCallMap[name] = { count: 0, editors: new Set(), sessions: new Set(), folders: new Set() };
+      toolCallMap[name].count++;
+      toolCallMap[name].editors.add(row.source);
+      toolCallMap[name].sessions.add(row.chat_id);
+      if (row.folder) toolCallMap[name].folders.add(row.folder);
+
+      if (!sessionMap[row.chat_id]) {
+        sessionMap[row.chat_id] = {
+          composerId: row.chat_id,
+          source: row.source,
+          name: row.chat_name,
+          folder: row.folder,
+          createdAt: row.timestamp,
+          totalToolCalls: 0,
+          tools: {},
+        };
+      }
+      sessionMap[row.chat_id].totalToolCalls++;
+      sessionMap[row.chat_id].tools[name] = (sessionMap[row.chat_id].tools[name] || 0) + 1;
+    }
+
+    // 4. Build tool call summary
+    const toolCalls = Object.entries(toolCallMap)
+      .map(([name, data]) => ({
+        name,
+        count: data.count,
+        editors: [...data.editors],
+        sessionCount: data.sessions.size,
+        folders: [...data.folders],
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // 5. Match tool calls to MCP servers using actual queried tool names.
+    //    Editors prefix MCP tool names in various ways:
+    //    - Windsurf: mcp{N}_{toolName}  (e.g. mcp1_query-docs)
+    //    - Cursor:   mcp_{ServerName}_{toolName}  (e.g. mcp_Figma_get_figma_data)
+    //    - VS Code:  mcp_{sanitizedId}_{toolName}  (e.g. mcp_io_github_byt_execute_sql)
+    //    - Others:   {server}_{sep}_{toolName}  (e.g. prompts_chat__search_prompts)
+    //
+    //    IMPORTANT: Only match tool calls that have an explicit MCP prefix.
+    //    Tool calls without a prefix (e.g. "read_file", "edit_file") are built-in
+    //    editor tools even if an MCP server happens to expose a tool with the same name.
+    const matchedTools = {};
+
+    for (const tc of toolCalls) {
+      const tcName = tc.name;
+      let serverName = null;
+
+      // Pattern 1: Windsurf — mcp{N}_{toolName}
+      const windsurfMatch = tcName.match(/^mcp(\d+)_(.+)$/);
+      if (windsurfMatch) {
+        const stripped = windsurfMatch[2];
+        serverName = toolToServer[stripped];
+        if (!serverName) {
+          // Fallback: search all server tool sets
+          for (const [sn, toolSet] of Object.entries(serverToolPatterns)) {
+            if (toolSet.has(stripped.toLowerCase())) { serverName = sn; break; }
+          }
+        }
+      }
+
+      // Pattern 2: Cursor — mcp_{ServerName}_{toolName}
+      if (!serverName) {
+        const cursorMatch = tcName.match(/^mcp_([^_]+)_(.+)$/);
+        if (cursorMatch) {
+          const sName = cursorMatch[1];
+          const tName = cursorMatch[2];
+          for (const [sn, toolSet] of Object.entries(serverToolPatterns)) {
+            if (sn.toLowerCase() === sName.toLowerCase() && toolSet.has(tName.toLowerCase())) {
+              serverName = sn; break;
+            }
+          }
+          // Even if we can't verify the tool, the prefix confirms it's an MCP call
+          if (!serverName) {
+            for (const s of servers) {
+              if (s.name.toLowerCase() === sName.toLowerCase()) { serverName = s.name; break; }
+            }
+          }
+        }
+      }
+
+      // Pattern 3: VS Code / generic — mcp_{sanitizedServerId}_{toolName}
+      //   Server IDs like "io.github.f/prompts.chat-mcp" become "io_github_f_prompts_chat_mcp"
+      if (!serverName && tcName.startsWith('mcp_') && !tcName.match(/^mcp\d/)) {
+        const suffix = tcName.slice(4).toLowerCase(); // after "mcp_"
+        // First try matching via queried tool sets
+        for (const [sn, toolSet] of Object.entries(serverToolPatterns)) {
+          for (const tool of toolSet) {
+            if (suffix.endsWith('_' + tool) || suffix.endsWith(tool)) {
+              serverName = sn; break;
+            }
+          }
+          if (serverName) break;
+        }
+        // Fallback: match by sanitized server name (for servers whose tools couldn't be queried)
+        //   VS Code may truncate sanitized server IDs, so find the best (longest) prefix match
+        if (!serverName) {
+          let bestLen = 0;
+          let bestServer = null;
+          for (const s of servers) {
+            const sanitized = s.name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+            // Full sanitized name match
+            if (suffix.startsWith(sanitized + '_') && sanitized.length > bestLen) {
+              bestLen = sanitized.length; bestServer = s.name;
+            }
+            // Truncated prefix: suffix must start with at least 60% of sanitized name
+            const minLen = Math.max(6, Math.ceil(sanitized.length * 0.6));
+            for (let len = sanitized.length; len >= minLen; len--) {
+              const prefix = sanitized.slice(0, len);
+              if (suffix.startsWith(prefix + '_') && len > bestLen) {
+                bestLen = len; bestServer = s.name; break;
+              }
+            }
+          }
+          if (bestServer) serverName = bestServer;
+        }
+      }
+
+      // Pattern 4: Double-underscore separator — {server_name}__{toolName}
+      if (!serverName) {
+        const sepMatch = tcName.match(/^(.+?)__(.+)$/);
+        if (sepMatch) {
+          const tName = sepMatch[2];
+          for (const [sn, toolSet] of Object.entries(serverToolPatterns)) {
+            if (toolSet.has(tName.toLowerCase())) { serverName = sn; break; }
+          }
+        }
+      }
+
+      if (serverName) {
+        if (!matchedTools[serverName]) matchedTools[serverName] = [];
+        matchedTools[serverName].push(tc);
+      }
+    }
+
+    // 6. Top sessions by tool calls
+    const topSessions = Object.values(sessionMap)
+      .sort((a, b) => b.totalToolCalls - a.totalToolCalls)
+      .slice(0, 50);
+
+    // 7. Per-project MCP stats
+    const projects = cache.getCachedProjects({ hiddenFolders: getHiddenFolders() });
+    const projectMcpConfigs = [
+      { file: '.mcp.json', editor: 'claude-code', label: 'Claude Code' },
+      { file: '.cursor/mcp.json', editor: 'cursor', label: 'Cursor' },
+      { file: '.vscode/mcp.json', editor: 'vscode', label: 'VS Code' },
+      { file: '.gemini/settings.json', editor: 'gemini-cli', label: 'Gemini CLI' },
+      { file: '.kiro/settings/mcp.json', editor: 'kiro', label: 'Kiro' },
+    ];
+
+    const projectMcps = [];
+    for (const proj of projects) {
+      if (!proj.folder) continue;
+      const configs = [];
+      for (const pc of projectMcpConfigs) {
+        const configPath = path.join(proj.folder, pc.file);
+        if (!fs.existsSync(configPath)) continue;
+        try {
+          const raw = fs.readFileSync(configPath, 'utf-8');
+          const parsed = JSON.parse(raw);
+          const mcpServers = parsed.mcpServers || parsed.mcp_servers || parsed.servers || {};
+          configs.push({
+            file: pc.file,
+            editor: pc.editor,
+            editorLabel: pc.label,
+            serverCount: Object.keys(mcpServers).length,
+            serverNames: Object.keys(mcpServers),
+          });
+        } catch { /* skip invalid configs */ }
+      }
+      if (configs.length === 0) continue;
+
+      // Count MCP tool calls from this project's sessions
+      const projToolCalls = toolRows.filter(r => r.folder === proj.folder);
+      const mcpToolCallCount = projToolCalls.filter(r => {
+        const n = r.tool_name;
+        return n.startsWith('mcp') || n.includes('__');
+      }).length;
+
+      // Which configured servers are used (matched to tool calls)
+      const configuredServerNames = new Set(configs.flatMap(c => c.serverNames));
+      const matchedServerNames = [];
+      for (const sn of configuredServerNames) {
+        if (matchedTools[sn]) matchedServerNames.push(sn);
+      }
+
+      projectMcps.push({
+        folder: proj.folder,
+        name: proj.name,
+        configs,
+        totalServers: [...configuredServerNames].length,
+        matchedServers: matchedServerNames.length,
+        mcpToolCalls: mcpToolCallCount,
+        totalSessions: proj.totalSessions || 0,
+      });
+    }
+
+    projectMcps.sort((a, b) => b.totalServers - a.totalServers || b.mcpToolCalls - a.mcpToolCalls);
+
+    // Strip _env from response (security)
+    const safeServers = servers.map(({ _env, ...rest }) => rest);
+
+    res.json({
+      servers: safeServers,
+      toolCalls,
+      matchedTools,
+      topSessions,
+      projectMcps,
+      summary: {
+        totalServers: servers.length,
+        totalToolCalls: toolRows.length,
+        uniqueTools: toolCalls.length,
+        sessionsWithTools: Object.keys(sessionMap).length,
+        editorsWithServers: [...new Set(servers.map(s => s.editor))],
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/all-projects', (req, res) => {
   try {
     res.json(cache.getCachedProjects({ ...parseDateOpts(req.query), includeHidden: true }));

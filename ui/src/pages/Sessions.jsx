@@ -11,6 +11,7 @@ import EditorIcon from '../components/EditorIcon'
 import SectionTitle from '../components/SectionTitle'
 import DateRangePicker from '../components/DateRangePicker'
 import ChatSidebar from '../components/ChatSidebar'
+import PageHeader from '../components/PageHeader'
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler)
 
@@ -295,7 +296,9 @@ export default function Sessions({ overview }) {
   )
 
   return (
-    <div className="fade-in space-y-4">
+    <div className="fade-in space-y-3">
+      <PageHeader icon={List} title="Sessions" />
+
       {/* KPIs */}
       <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))' }}>
         <KpiCard label="sessions" value={formatNumber(filtered.length)} sub={filtered.length !== total ? `of ${formatNumber(total)}` : ''} />
@@ -421,29 +424,26 @@ export default function Sessions({ overview }) {
       )}
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-          <div className="relative">
-            <Filter size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text3)' }} />
-            <select
-              value={editor}
-              onChange={e => setEditor(e.target.value)}
-              className="pl-8 pr-3 py-1 text-[12px] outline-none appearance-none cursor-pointer"
-              style={{ background: 'var(--c-bg3)', color: 'var(--c-text)', border: '1px solid var(--c-border)' }}
-            >
-              <option value="">All Editors</option>
-              {editors.map(e => (
-                <option key={e.id} value={e.id}>{editorLabel(e.id)} ({e.count})</option>
-              ))}
-            </select>
-          </div>
+      <div className="flex items-center gap-2">
+          <select
+            value={editor}
+            onChange={e => setEditor(e.target.value)}
+            className="px-2 py-1 text-[12px] outline-none"
+            style={{ background: 'var(--c-bg3)', color: 'var(--c-text)', border: '1px solid var(--c-border)' }}
+          >
+            <option value="">All Editors</option>
+            {editors.map(e => (
+              <option key={e.id} value={e.id}>{editorLabel(e.id)} ({e.count})</option>
+            ))}
+          </select>
           <div className="relative flex-1 max-w-sm">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text3)' }} />
+            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--c-text3)' }} />
             <input
               type="text"
-              placeholder="search sessions..."
+              placeholder="Search sessions..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1 text-[12px] outline-none"
+              className="w-full pl-7 pr-3 py-1 text-[12px] outline-none"
               style={{ background: 'var(--c-bg3)', color: 'var(--c-text)', border: '1px solid var(--c-border)' }}
             />
           </div>

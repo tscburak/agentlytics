@@ -102,7 +102,7 @@ export default function ProjectDetail() {
   const avgMsgs = allEnabled && project.totalSessions > 0 ? (project.totalMessages / project.totalSessions).toFixed(1) : 0
 
   return (
-    <div className="fade-in space-y-4">
+    <div className="fade-in space-y-3">
       {/* Header card */}
       <div className="card p-4">
         <div className="flex items-start gap-3">

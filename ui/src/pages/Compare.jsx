@@ -5,6 +5,7 @@ import { Bar } from 'react-chartjs-2'
 import { fetchDeepAnalytics, fetchChats } from '../lib/api'
 import { editorColor, editorLabel, formatNumber } from '../lib/constants'
 import { useTheme } from '../lib/theme'
+import PageHeader from '../components/PageHeader'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
@@ -152,7 +153,7 @@ export default function Compare({ overview }) {
 
   return (
     <div className="fade-in space-y-3">
-      <div className="flex items-center gap-2">
+      <PageHeader icon={ArrowLeftRight} title="Compare">
         <select
           value={editorA}
           onChange={e => setEditorA(e.target.value)}
@@ -161,7 +162,7 @@ export default function Compare({ overview }) {
         >
           {editors.map(e => <option key={e.id} value={e.id}>{editorLabel(e.id)}</option>)}
         </select>
-        <ArrowLeftRight size={12} style={{ color: 'var(--c-text3)' }} />
+        <span style={{ color: 'var(--c-text3)' }}>vs</span>
         <select
           value={editorB}
           onChange={e => setEditorB(e.target.value)}
@@ -171,7 +172,7 @@ export default function Compare({ overview }) {
           {editors.map(e => <option key={e.id} value={e.id}>{editorLabel(e.id)}</option>)}
         </select>
         {loading && <Loader2 size={11} className="animate-spin" style={{ color: 'var(--c-text3)' }} />}
-      </div>
+      </PageHeader>
 
       {result && (
         <div className="space-y-3">

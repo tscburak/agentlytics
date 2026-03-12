@@ -4,6 +4,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import { Bar, Line, Doughnut } from 'react-chartjs-2'
 import { executeQuery, fetchSchema } from '../lib/api'
 import { useTheme } from '../lib/theme'
+import PageHeader from '../components/PageHeader'
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Filler)
 
@@ -132,24 +133,22 @@ export default function SqlViewer() {
   const cardBg = { background: 'var(--c-card)', border: '1px solid var(--c-border)' }
 
   return (
-    <div className="space-y-3">
+    <div className="fade-in space-y-3">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Database size={16} style={txtStyle} />
-          <h1 className="text-sm font-semibold" style={txtStyle}>SQL Viewer</h1>
-          <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ ...txt2Style, background: 'var(--c-bg2)' }}>cache.db</span>
+      <PageHeader icon={Database} title="SQL Viewer">
+        <span className="text-[10px] px-1.5 py-0.5" style={{ color: 'var(--c-text3)', background: 'var(--c-bg3)' }}>cache.db</span>
+        <div className="ml-auto">
+          <button
+            onClick={() => setShowSchema(!showSchema)}
+            className="flex items-center gap-1 text-[11px] px-2 py-1 transition hover:bg-[var(--c-card)]"
+            style={{ color: 'var(--c-text2)', border: '1px solid var(--c-border)' }}
+          >
+            <Table2 size={11} />
+            Schema
+            <ChevronDown size={10} className={`transition ${showSchema ? 'rotate-180' : ''}`} />
+          </button>
         </div>
-        <button
-          onClick={() => setShowSchema(!showSchema)}
-          className="flex items-center gap-1 text-[12px] px-2 py-1 rounded transition hover:bg-[var(--c-card)]"
-          style={txt2Style}
-        >
-          <Table2 size={12} />
-          Schema
-          <ChevronDown size={10} className={`transition ${showSchema ? 'rotate-180' : ''}`} />
-        </button>
-      </div>
+      </PageHeader>
 
       {/* Schema panel */}
       {showSchema && schema && (

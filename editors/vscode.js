@@ -355,6 +355,8 @@ function fetchCopilotStatus(token) {
 }
 
 async function getUsage() {
+  const { isSubscriptionAccessAllowed } = require('./base');
+  if (!isSubscriptionAccessAllowed()) return null;
   const creds = getCopilotToken();
   if (!creds) return null;
 
@@ -396,4 +398,16 @@ function getArtifacts(folder) {
   });
 }
 
-module.exports = { name, labels, getChats, getMessages, getUsage, getArtifacts };
+function getMCPServers() {
+  const { parseMcpConfigFile } = require('./base');
+  const results = [];
+  for (const variant of VARIANTS) {
+    if (!fs.existsSync(variant.appSupport)) continue;
+    // User-level: <appSupport>/User/mcp.json
+    const userMcp = path.join(variant.appSupport, 'User', 'mcp.json');
+    results.push(...parseMcpConfigFile(userMcp, { editor: variant.id, label: variant.id === 'vscode' ? 'VS Code' : 'VS Code Insiders', scope: 'global' }));
+  }
+  return results;
+}
+
+module.exports = { name, labels, getChats, getMessages, getUsage, getArtifacts, getMCPServers };
